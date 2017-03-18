@@ -1,30 +1,32 @@
 # -*- coding: utf-8 -*-
 # duang duang 的持续访问某个 url
 
-import time
 import getopt
-import urllib
 import threading
+import time
 import tkinter.messagebox as messagebox
+import urllib
+import logging
+from tkinter import *
 from urllib import request
 from urllib.request import HTTPRedirectHandler
-from tkinter import *
 
 
 class OpenerHTTPRedirectHandler(HTTPRedirectHandler):
-    def http_error_301(self, req, fp, code, msg, httpmsg):
-        print(httpmsg.headers)
-        return HTTPRedirectHandler.http_error_301(self, req, fp, code, msg, httpmsg)
+    def http_error_301(self, req, fp, code, msg, headers):
+        print(headers.headers)
+        return HTTPRedirectHandler.http_error_301(self, req, fp, code, msg, headers)
 
-    def http_error_302(self, req, fp, code, msg, httpmsg):
-        print(httpmsg.headers)
-        return HTTPRedirectHandler.http_error_302(self, req, fp, code, msg, httpmsg)
+    def http_error_302(self, req, fp, code, msg, headers):
+        print(headers.headers)
+        return HTTPRedirectHandler.http_error_302(self, req, fp, code, msg, headers)
 
 
 def refresh(options):
     req = request.Request(options.url)
     urllib.request.build_opener(OpenerHTTPRedirectHandler)
-    req.add_header('User-Agent', 'Mozilla/6.0 (iPhone; CPU iPhone OS 8_0 like Mac OS X) AppleWebKit/536.26 (KHTML, like Gecko) Version/8.0 Mobile/10A5376e Safari/8536.25')
+    req.add_header("User-Agent", "Mozilla/5.0 (Linux; Android 5.1.1; Nexus 6 Build/LYZ28E) AppleWebKit/537.36 (KHTML, "
+                                 "like Gecko) Chrome/56.0.2924.87 Mobile Safari/537.36")
     with request.urlopen(req) as f:
         status = f.status
     if options.sleep:
@@ -70,18 +72,30 @@ class Application(Frame):
         self.pack()
 
         self.fm_top = Frame(self)
-        self.label_url = Label(self.fm_top, text="地址：")
+        # label_url
+        self.label_url = Label(self.fm_top, text="地址:", padx=5)
         self.label_url.pack(side=LEFT)
+        # input_url
         self.input_url = Entry(self.fm_top)
         self.input_url.pack(side=LEFT, expand=True, fill=X, padx=5, pady=5)
         self.fm_top.pack(fill=X, pady=5)
 
         self.fm_center = Frame(self)
-        self.label_count = Label(self.fm_center, text="次数：")
+        # label_count
+        self.label_count = Label(self.fm_center, text="次数:", padx=5)
         self.label_count.pack(side=LEFT)
-        self.input_count = Entry(self.fm_center)
+        # input_count
+        self.input_count = Entry(self.fm_center, width=5)
         self.input_count.insert(0, "100")
         self.input_count.pack(side=LEFT, expand=True, fill=X, padx=5, pady=5)
+        # label_sleep
+        self.label_sleep = Label(self.fm_center, text="间隔时间:", padx=5)
+        self.label_sleep.pack(side=LEFT)
+        # input_sleep
+        self.input_sleep = Entry(self.fm_center, width=5)
+        self.input_sleep.insert(0, "0")
+        self.input_sleep.pack(side=LEFT, expand=True, fill=X, padx=5, pady=5)
+        # btn_action
         self.btn_action = Button(self.fm_center, text='开始', command=self.action)
         self.btn_action.pack(side=RIGHT, padx=10)
         self.fm_center.pack(fill=X)
@@ -96,18 +110,25 @@ class Application(Frame):
     def action(self):
         url = self.input_url.get()
         count = self.input_count.get()
-        if isinstance(count, int) or int(count):
+        sleep = self.input_sleep.get()
+
+        if re.match(r"^\+?[1-9][0-9]*$", count):
             count = int(count)
         else:
-            self.label_text_var.set("次数只能是数字")
-            raise AttributeError()
+            messagebox.showinfo("提示", "次数只能是数字，不能是0")
+            return
+        if not re.match(r"^\+?[0-9]*$", sleep):
+            messagebox.showinfo("提示", "间隔时间只能是数字")
+            return
         if not url:
-            messagebox.showinfo('提示', "请输入地址")
+            messagebox.showinfo("提示", "请输入地址")
         else:
             options = Options()
             options.url = url
             options.count = count
+            options.sleep = int(sleep)
             t = threading.Thread(target=main, args=(options, self.label_text_var))
+            t.setDaemon(True)
             t.start()
 
 
@@ -132,13 +153,34 @@ def main(options, label_text=None):
         label_text.set(text_end)
 
 
+def center(win):
+    """
+    centers a tkinter window
+    :param win: the root or Toplevel window to center
+    """
+    win.update_idletasks()
+    width = win.winfo_width()
+    fm_width = win.winfo_rootx() - win.winfo_x()
+    win_width = width + 2 * fm_width
+    height = win.winfo_height()
+    title_bar_height = win.winfo_rooty() - win.winfo_y()
+    win_height = height + title_bar_height + fm_width
+    x = win.winfo_screenwidth() // 2 - win_width // 2
+    y = win.winfo_screenheight() // 2 - win_height // 2
+    win.geometry('{}x{}+{}+{}'.format(width, height, x, y))
+    win.deiconify()
+
+
 if __name__ == "__main__":
     try:
         if len(sys.argv[1:]) == 0:
-            app = Application()
-            app.master.title = "刷子"
-            app.mainloop()
+            root = Tk()
+            root.title("duang")
+            Application(root)
+            center(root)
+            root.mainloop()
         else:
             main(parse_options(sys.argv[1:]))
     except Exception as e:
+        logging.error(e.args)
         sys.exit(1)
